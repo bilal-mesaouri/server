@@ -6,6 +6,11 @@ const conducteurSchema = new mongoose.Schema({
     Matricule:String,
     Grade:String,
     Filiale:String,
+    TAG_Jawaz_n: String,
+    Plafond: String,
+    Dotation: String,
+    Date_expirationD: String,
+    carte_carburant: String,
     
 
 

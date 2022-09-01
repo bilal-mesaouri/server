@@ -1,11 +1,13 @@
 let mongoose = require("mongoose");
 const contratSchema = new mongoose.Schema({
 
-    ORD: String,
-    Contrat_no: String,
-    Assurance_Contrat_En_Cours :String ,
+    Annee: String,
+    contrat_no: String,
+    Contrat_echu_En_Cours :String ,
+    Prestataire:String,
+    A_O_no:String,
 
 });
-const contrat = mongoose.model("contrat", contratSchema);
+const contrat = mongoose.model("contrats", contratSchema);
 
 module.exports = contrat;
