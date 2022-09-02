@@ -85,44 +85,46 @@ app.get("/", requireAuth, (req, res) => {
     .find({})
     .populate("conducteur")
     .populate("vehicule")
+    .populate("contrat")    
+
     .exec()
     .then((docs) => {
-      for (var i = 0; i < docs.length; i++) {
-        datos.push({});
 
-        for (var prop of Object.keys(docs[i].toJSON())) {
-          if (prop == "vehicule" || prop == "conducteur") {
-            for (var special_prop of Object.keys(docs[i][prop].toJSON())) {
-              datos[i][special_prop] = docs[i][prop][special_prop];
-            }
-            continue;
-          }
-          if (prop == "_id") {
-            datos[i]["id"] = docs[i][prop];
-            continue;
-          }
-          datos[i][prop] = docs[i][prop];
-        }
-      }
+      docs.map((element)=>{
+        const elt = element.toJSON()
+        Object.defineProperty(elt, 'id',
+          Object.getOwnPropertyDescriptor(elt, '_id'));
+        delete elt['_id'];
+        data={...elt,...elt.contrat,...elt.conducteur,...elt.vehicule}
+        delete data.vehicule
+        delete data.conducteur
+        delete data.contrat
+        console.log('data ->->->',data)
+        datos.push(data)
+      })
+
+
+      console.log('datos',datos)
       res.send({
         results: datos,
         disp_fields: display_fields,
-      });
+      }); 
+
+
     });
-  /*           console.log(Object.keys(data.toJSON()))
-          console.log(Object.keys(data['vehicule'].toJSON())) */
+
 });
 
-app.post("/change", requireAuth, (req, res) => {
+app.post("/change", requireAuth,  (req, res) => {
   console.log(" bodyyy--->", req.body);
   const data = req.body;
-  data.map((elt) => {
+  data.map(async (elt) => {
     const aux = {};
     aux[elt.field] = elt.value;
-    if (Object.keys(scontrat.schema.tree).includes(elt.field))
+    if (Object.keys(scontrat.schema.tree).includes(elt.field)){
       scontrat.findByIdAndUpdate(elt.id, aux, (err) => {
         if (err) throw err;
-      });
+      });}
     else if (Object.keys(vehicule.schema.tree).includes(elt.field)) {
       vehicule.findOneAndUpdate({ sous_contrat: elt.id }, aux, (err, docs) =>
         console.log(docs)
@@ -132,8 +134,18 @@ app.post("/change", requireAuth, (req, res) => {
         console.log(docs)
       );
     }
-  });
+     else if (Object.keys(contrat.schema.tree).includes(elt.field)) {
+      console.log('$$$$$$')
+      const ct = await scontrat.findOne({ _id: elt.id });
+
+      console.log(ct)
+      console.log('aux',aux)
+      const ctt = await contrat.findOneAndUpdate({_id:ct.contrat},aux)
+      console.log(ctt)
+    }
+
 });
+})
 app.post("/delete", requireAuth, (req, res) => {
   const data = req.body;
   console.log(req.body);
