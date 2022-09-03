@@ -1,6 +1,7 @@
 let mongoose = require("mongoose");
 const conducteur = require("./conducteur");
 const vehicule = require("./vehicule");
+const contrat = require("./contrat");
 const sous_contratSchema = new mongoose.Schema({
   Ref_Parc_Contrat_Loueur: String,
   Duree: String,
@@ -30,10 +31,13 @@ const sous_contratSchema = new mongoose.Schema({
 // schema
 sous_contratSchema.pre("deleteOne", function () {
   let id = this.getQuery()["_id"];
+  let ct = this.getQuery()["contrat"];
   console.log(` was Removing!`);
   console.log(this.getQuery()["_id"]);
   conducteur.deleteOne({ sous_contrat: id }).exec();
   vehicule.deleteOne({ sous_contrat: id }).exec();
+  contrat.updateOne({sous_contrats:id},{ $pull:{sous_contrats:id} }).exec();
+
 });
 const sous_contrat = mongoose.model("sous_contrats", sous_contratSchema);
 

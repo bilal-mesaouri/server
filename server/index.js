@@ -1,4 +1,4 @@
- const express = require("express");
+const express = require("express");
 const app = express();
 const cors = require("cors");
 const mongoose = require("./config/connexion");
@@ -25,14 +25,14 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/get_fields',requireAuth,(req,res)=>{
-  res.send({flds:display_fields})
-})
+app.get("/get_fields", requireAuth, (req, res) => {
+  res.send({ flds: display_fields });
+});
 
 app.post("/add_user", requireAuth, async (req, res) => {
   console.log("hallo");
   const data = req.body;
-  console.log(data)
+  console.log(data);
   const subcontract = {};
   const driver = {};
   const vehicul = {};
@@ -48,20 +48,22 @@ app.post("/add_user", requireAuth, async (req, res) => {
       contrats[key] = data[key];
   }
 
-  var ct ;
-  if (Object.keys(data).includes('contrat_numb')){
-    ct = await contrat.findOne({Contrat_no:data['contrat_numb']})
-    if(!ct)res.sendStatus(404)
-    else{
-      data['contrat_no']=ct._id
+  var ct;
+  if (Object.keys(data).includes("contrat_numb")) {
+    console.log(data["contrat_numb"])
+    ct = await contrat.findOne({ contrat_no: data["contrat_numb"] });
+    console.log('look at me',ct)
+    if (!ct) res.sendStatus(404);
+    else {
+      data["contrat_no"] = ct._id;
     }
-  }else{
-    console.log('contrats',contrats) 
+  } else {
+    console.log("contrats", contrats);
 
     ct = new contrat(contrats);
     await ct.save();
-    console.log('ct',ct)
-    data['contrat_no']=ct._id
+    console.log("ct", ct);
+    data["contrat_no"] = ct._id;
   }
   const vh = new vehicule(vehicul);
   await vh.save();
@@ -70,11 +72,14 @@ app.post("/add_user", requireAuth, async (req, res) => {
   const sc = new scontrat(subcontract);
   sc.conducteur = cd;
   sc.vehicule = vh;
-  sc.contrat = ct
+  sc.contrat = ct;
 
   await sc.save();
   conducteur.findByIdAndUpdate(cd._id, { sous_contrat: sc._id }).exec();
   vehicule.findByIdAndUpdate(vh._id, { sous_contrat: sc._id }).exec();
+  contrat
+    .findByIdAndUpdate(ct._id, { $push: { sous_contrats: sc._id } })
+    .exec();
   res.send({});
 });
 
@@ -85,47 +90,45 @@ app.get("/", requireAuth, (req, res) => {
     .find({})
     .populate("conducteur")
     .populate("vehicule")
-    .populate("contrat")    
+    .populate("contrat")
 
     .exec()
     .then((docs) => {
+      docs.map((element) => {
+        const elt = element.toJSON();
+        Object.defineProperty(
+          elt,
+          "id",
+          Object.getOwnPropertyDescriptor(elt, "_id")
+        );
+        delete elt["_id"];
+        data = { ...elt, ...elt.contrat, ...elt.conducteur, ...elt.vehicule };
+        delete data.vehicule;
+        delete data.conducteur;
+        delete data.contrat;
+        console.log("data ->->->", data);
+        datos.push(data);
+      });
 
-      docs.map((element)=>{
-        const elt = element.toJSON()
-        Object.defineProperty(elt, 'id',
-          Object.getOwnPropertyDescriptor(elt, '_id'));
-        delete elt['_id'];
-        data={...elt,...elt.contrat,...elt.conducteur,...elt.vehicule}
-        delete data.vehicule
-        delete data.conducteur
-        delete data.contrat
-        console.log('data ->->->',data)
-        datos.push(data)
-      })
-
-
-      console.log('datos',datos)
+      console.log("datos", datos);
       res.send({
         results: datos,
         disp_fields: display_fields,
-      }); 
-
-
+      });
     });
-
 });
 
-app.post("/change", requireAuth,  (req, res) => {
+app.post("/change", requireAuth, (req, res) => {
   console.log(" bodyyy--->", req.body);
   const data = req.body;
   data.map(async (elt) => {
     const aux = {};
     aux[elt.field] = elt.value;
-    if (Object.keys(scontrat.schema.tree).includes(elt.field)){
+    if (Object.keys(scontrat.schema.tree).includes(elt.field)) {
       scontrat.findByIdAndUpdate(elt.id, aux, (err) => {
         if (err) throw err;
-      });}
-    else if (Object.keys(vehicule.schema.tree).includes(elt.field)) {
+      });
+    } else if (Object.keys(vehicule.schema.tree).includes(elt.field)) {
       vehicule.findOneAndUpdate({ sous_contrat: elt.id }, aux, (err, docs) =>
         console.log(docs)
       );
@@ -133,19 +136,17 @@ app.post("/change", requireAuth,  (req, res) => {
       conducteur.findOneAndUpdate({ sous_contrat: elt.id }, aux, (err, docs) =>
         console.log(docs)
       );
-    }
-     else if (Object.keys(contrat.schema.tree).includes(elt.field)) {
-      console.log('$$$$$$')
+    } else if (Object.keys(contrat.schema.tree).includes(elt.field)) {
+      console.log("$$$$$$");
       const ct = await scontrat.findOne({ _id: elt.id });
 
-      console.log(ct)
-      console.log('aux',aux)
-      const ctt = await contrat.findOneAndUpdate({_id:ct.contrat},aux)
-      console.log(ctt)
+      console.log(ct);
+      console.log("aux", aux);
+      const ctt = await contrat.findOneAndUpdate({ _id: ct.contrat }, aux);
+      console.log(ctt);
     }
-
+  });
 });
-})
 app.post("/delete", requireAuth, (req, res) => {
   const data = req.body;
   console.log(req.body);
@@ -156,9 +157,6 @@ app.post("/delete", requireAuth, (req, res) => {
     await scontrat.deleteOne(aux).exec();
   });
   return res.send({ deleted: true });
-});
-app.get("/go_home", requireAuth, (req, res) => {
-  res.send({ name: "bilal" });
 });
 
 app.post("/login", async (req, res) => {
@@ -235,8 +233,54 @@ app.post("/disconnect", requireAuth, (req, res) => {
   res.end();
 });
 
-app.post("/search", async (req, res) => {
+function explode_obj(arr) {
+  var i = 0;
+  arr?.map((elt) => {
+    arr[i] = { ...elt, ...elt.dep[0], ...elt.cd[0], ...elt.cts[0] };
+    delete arr[i].dep;
+    delete arr[i].cd;
+    delete arr[i].cts;
+    i++;
+  });
+  return arr;
+}
+function change_id(arr,typ) {
+  if(typ=='vhcd'){
+  arr?.map((elt) => {
+    Object.defineProperty(
+      elt,
+      "id",
+      Object.getOwnPropertyDescriptor(elt, "sous_contrat")
+    );
+    delete elt["sous_contrat"];
+  });
+  return arr;}
+  else{
+    arr?.map((elt) => {
+      Object.defineProperty(
+        elt,
+        "id",
+        Object.getOwnPropertyDescriptor(elt, "_id")
+      );
+      delete elt["_id"];
+    });
+    return arr;
 
+  }
+}
+function remove_dups(srch_rs) {
+  let uniques = [];
+  while (srch_rs.length > 0) {
+    uniques.push(srch_rs[0]);
+    srch_rs = srch_rs.filter((elt) => {
+      elt.id == srch_rs[0].id;
+    });
+    console.log(srch_rs.length);
+  }
+
+  return uniques;
+}
+app.post("/search", async (req, res) => {
   var cd = await conducteur.aggregate([
     { $match: { $text: { $search: req.body.search } } },
     {
@@ -252,17 +296,20 @@ app.post("/search", async (req, res) => {
         from: "vehicules",
         localField: "sous_contrat",
         foreignField: "sous_contrat",
-        as: "vh",
+        as: "cd",
+      },
+    },
+    {
+      $lookup: {
+        from: "contrats",
+        localField: "sous_contrat",
+        foreignField: "sous_contrats",
+        as: "cts",
       },
     },
   ]);
-  var i = 0;
-  cd?.map((elt) => {
-    cd[i] = { ...elt, ...elt.dep[0],...elt.vh[0]};
-    delete cd[i].dep;
-    delete cd[i].vh;
-    i++;
-  });
+  cd = change_id(cd,'vhcd');
+  cd = explode_obj(cd);
 
   var vh = await vehicule.aggregate([
     { $match: { $text: { $search: req.body.search } } },
@@ -282,25 +329,84 @@ app.post("/search", async (req, res) => {
         as: "cd",
       },
     },
+    {
+      $lookup: {
+        from: "contrats",
+        localField: "sous_contrat",
+        foreignField: "sous_contrats",
+        as: "cts",
+      },
+    },
   ]);
+  vh = change_id(vh,'vhcd'); //non unique id problem
+  vh = explode_obj(vh); //when editing it gets edited auto on duplicate row
+  var aux = cd.concat(vh); //non unique id
 
-  var i = 0;
-  vh?.map((elt) => {
-    vh[i] = { ...elt, ...elt.dep[0],...elt.cd[0]};
-    delete vh[i].dep;
-    delete vh[i].cd;
-    i++;
-  });
+  var sc = await scontrat.aggregate([
+    { $match: { $text: { $search: req.body.search } } },
+    {
+      $lookup: {
+        from: "conducteurs",
+        localField: "_id",
+        foreignField: "sous_contrat",
+        as: "dep",
+      },
+    },
+    {
+      $lookup: {
+        from: "vehicules",
+        localField: "_id",
+        foreignField: "sous_contrat",
+        as: "cd",
+      },
+    },
+    {
+      $lookup: {
+        from: "contrats",
+        localField: "_id",
+        foreignField: "sous_contrats",
+        as: "cts",
+      },
+    },
+  ]);
+  console.log('sous ->->->',sc)
+  sc = change_id(sc,'sc');
+  sc = explode_obj(sc);
+  aux=aux.concat(sc);
+  var ct = await contrat.aggregate([
+    { $match: { $text: { $search: req.body.search } } },
+    {
+      $lookup: {
+        from: "sous_contrats",
+        localField: "sous_contrats",
+        foreignField: "_id",
+        as: "dep",
+      },
+    },
+    {
+      $lookup: {
+        from: "vehicules",
+        localField: "sous_contrats",
+        foreignField: "sous_contrat",
+        as: "cd",
+      },
+    },
+    {
+      $lookup: {
+        from: "conducteurs",
+        localField: "sous_contrats",
+        foreignField: "sous_contrats",
+        as: "cts",
+      },
+    },
+  ]);
+  ct = change_id(ct,'sc');
+  cd = explode_obj(ct);
+  aux=aux.concat(ct);
 
-  const aux =cd.concat(vh)
-  console.log('->->-> aux ',aux)
-  aux?.map((elt)=>{
-    Object.defineProperty(elt, 'id',
-      Object.getOwnPropertyDescriptor(elt, '_id'));
-    delete elt['_id'];
-  })
-  res.send(aux);
-});
+  res.send(remove_dups(aux));
+ });
+
 
 app.listen(3001, () => {
   console.log("server is working on port 3001");
