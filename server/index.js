@@ -25,11 +25,11 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get("/get_fields", requireAuth, (req, res) => {
+app.get("/get_fields",  (req, res) => {
   res.send({ flds: display_fields });
 });
 
-app.post("/add_user", requireAuth, async (req, res) => {
+app.post("/add_user",  async (req, res) => {
   console.log("hallo");
   const data = req.body;
   console.log(data);
@@ -50,15 +50,12 @@ app.post("/add_user", requireAuth, async (req, res) => {
 
   var ct;
   if (Object.keys(data).includes("contrat_numb")) {
-    console.log(data["contrat_numb"])
     ct = await contrat.findOne({ contrat_no: data["contrat_numb"] });
-    console.log('look at me',ct)
     if (!ct) res.sendStatus(404);
     else {
       data["contrat_no"] = ct._id;
     }
   } else {
-    console.log("contrats", contrats);
 
     ct = new contrat(contrats);
     await ct.save();
@@ -83,7 +80,7 @@ app.post("/add_user", requireAuth, async (req, res) => {
   res.send({});
 });
 
-app.get("/", requireAuth, (req, res) => {
+app.get("/",  (req, res) => {
   var data = [];
   var datos = [];
   scontrat
@@ -118,7 +115,7 @@ app.get("/", requireAuth, (req, res) => {
     });
 });
 
-app.post("/change", requireAuth, (req, res) => {
+app.post("/change", (req, res) => {
   console.log(" bodyyy--->", req.body);
   const data = req.body;
   data.map(async (elt) => {
@@ -147,7 +144,7 @@ app.post("/change", requireAuth, (req, res) => {
     }
   });
 });
-app.post("/delete", requireAuth, (req, res) => {
+app.post("/delete", (req, res) => {
   const data = req.body;
   console.log(req.body);
   data.map(async (elt) => {
@@ -187,7 +184,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.post("/register", requireAuth, async (req, res) => {
+app.post("/register", async (req, res) => {
   console.log(req.body);
   let data = req.body;
   if (data["password"].length < 6) {
@@ -227,22 +224,24 @@ app.post("/verify", (req, res) => {
   }
 });
 
-app.post("/disconnect", requireAuth, (req, res) => {
+app.post("/disconnect", (req, res) => {
   res.clearCookie("jwt");
   res.clearCookie("connected");
   res.end();
 });
 
 function explode_obj(arr) {
-  var i = 0;
+  const new_arr=[]
   arr?.map((elt) => {
-    arr[i] = { ...elt, ...elt.dep[0], ...elt.cd[0], ...elt.cts[0] };
-    delete arr[i].dep;
-    delete arr[i].cd;
-    delete arr[i].cts;
-    i++;
+    for(let i =0;i<elt.dep.length;i++){
+      new_arr.push({ ...elt, ...elt.dep[i], ...elt.cd[i], ...elt.cts[i] })
+      delete new_arr[new_arr.length-1].dep;
+      delete new_arr[new_arr.length-1].cd;
+      delete new_arr[new_arr.length-1].cts;
+    }
+
   });
-  return arr;
+  return new_arr;
 }
 function change_id(arr,typ) {
   if(typ=='vhcd'){
@@ -255,8 +254,23 @@ function change_id(arr,typ) {
     delete elt["sous_contrat"];
   });
   return arr;}
+  else if (typ=='contrat') {
+    arr?.map((elt) => {
+      elt['dep'].map((element)=>{
+        Object.defineProperty(
+          element,
+          "id",
+          Object.getOwnPropertyDescriptor(element, "_id")
+        );
+        delete element["_id"];
+      })
+
+    });
+    return arr;
+  }
   else{
     arr?.map((elt) => {
+
       Object.defineProperty(
         elt,
         "id",
@@ -272,15 +286,19 @@ function remove_dups(srch_rs) {
   let uniques = [];
   while (srch_rs.length > 0) {
     uniques.push(srch_rs[0]);
-    srch_rs = srch_rs.filter((elt) => {
-      elt.id == srch_rs[0].id;
+    const id = srch_rs[0].id
+    const aux = srch_rs.filter((elt) => {
+      console.log(elt.id,' ',id,' ',!elt.id.equals(srch_rs[0].id))
+      return  !elt.id.equals(srch_rs[0].id)
     });
+    console.log('aux',aux)
+    srch_rs=aux
     console.log(srch_rs.length);
   }
-
   return uniques;
 }
 app.post("/search", async (req, res) => {
+  console.log(req.body.search)
   var cd = await conducteur.aggregate([
     { $match: { $text: { $search: req.body.search } } },
     {
@@ -395,15 +413,17 @@ app.post("/search", async (req, res) => {
       $lookup: {
         from: "conducteurs",
         localField: "sous_contrats",
-        foreignField: "sous_contrats",
+        foreignField: "sous_contrat",
         as: "cts",
       },
     },
   ]);
-  ct = change_id(ct,'sc');
-  cd = explode_obj(ct);
+  console.log('raw ct',ct)
+  ct = change_id(ct,'contrat');
+  ct = explode_obj(ct);
   aux=aux.concat(ct);
-
+  console.log('search aux',aux)
+  console.log('remove dups',remove_dups(aux))
   res.send(remove_dups(aux));
  });
 
